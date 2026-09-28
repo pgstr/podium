@@ -1,0 +1,13 @@
+{
+  "name": "process-split-demo",
+  "services": [
+    {
+      "id": "worker",
+      "image": "docker.io/library/caddy:2-alpine",
+      "entrypoint": ["/bin/sh"],
+      "command": ["-c"],
+      "args": ["touch /tmp/ready; echo PROCESS_SPLIT_OK; exec sleep 600"],
+      "healthCheck": ["test", "-f", "/tmp/ready"]
+    }
+  ]
+}

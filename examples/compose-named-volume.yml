@@ -1,0 +1,22 @@
+# Named volume example — now supported via managed volumes.
+# `pgdata` is declared in the top-level `volumes:` block, so podium resolves it to
+# ~/.podium/<stack>/volumes/pgdata/ (created on demand, never auto-deleted).
+#
+#   podium validate examples/compose-named-volume.yml   # should print "ok"
+#   podium apply    examples/compose-named-volume.yml   # brings up the stack
+name: named-volume-test
+
+volumes:
+  pgdata:     # local managed volume — empty value means default local driver
+
+services:
+  db:
+    image: docker.io/library/alpine:3.16
+    command: ["/bin/sh", "-c", "mkdir -p /var/lib/postgresql && echo 'init' >> /var/lib/postgresql/data.log && exec sleep 600"]
+    environment:
+      POSTGRES_PASSWORD: devpassword
+    volumes:
+      - pgdata:/var/lib/postgresql    # named volume → managed by podium
+    healthcheck:
+      test: ["CMD", "test", "-f", "/var/lib/postgresql/data.log"]
+    mem_limit: 256m

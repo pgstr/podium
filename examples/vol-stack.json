@@ -1,0 +1,11 @@
+{
+  "name": "vol-test",
+  "services": [
+    {
+      "id": "svc-vol",
+      "image": "docker.io/library/alpine:3.16",
+      "volumes": [{ "source": "/tmp/voltest", "destination": "/data", "readOnly": true }],
+      "command": ["/bin/sh", "-c", "[ -f /data/marker ] && cat /data/marker || { echo NO_MOUNT; exit 9; }; exec sleep 600"]
+    }
+  ]
+}

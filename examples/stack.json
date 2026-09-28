@@ -1,0 +1,12 @@
+{
+  "name": "demo-stack",
+  "services": [
+    {
+      "id": "svc-a",
+      "image": "docker.io/library/alpine:3.16",
+      "command": ["/bin/sh", "-c", "exec sleep 600"],
+      "livenessCheck": ["pgrep", "sleep"]
+    },
+    { "id": "svc-b", "image": "docker.io/library/alpine:3.16", "command": ["/bin/sh", "-c", "exec sleep 600"] }
+  ]
+}

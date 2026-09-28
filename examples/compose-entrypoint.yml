@@ -1,0 +1,7 @@
+name: compose-entrypoint-demo
+services:
+  nginx-version:
+    image: docker.io/library/nginx:alpine
+    # Overrides image CMD but retains `/docker-entrypoint.sh` from the image.
+    command: ["nginx", "-v"]
+    restart: "no"

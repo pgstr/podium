@@ -1,0 +1,27 @@
+{
+  "name": "dns-discovery-demo",
+  "dns": true,
+  "services": [
+    {
+      "id": "app",
+      "image": "docker.io/library/busybox:1.37",
+      "command": [
+        "/bin/sh", "-c",
+        "mkdir -p /www && echo '<h1>Hello through managed DNS</h1>' > /www/index.html && exec busybox httpd -f -p 8080 -h /www"
+      ],
+      "healthCheck": ["wget", "-q", "-O-", "http://127.0.0.1:8080"]
+    },
+    {
+      "id": "probe",
+      "image": "docker.io/library/busybox:1.37",
+      "command": ["/bin/sh", "-c", "exec sleep 3600"],
+      "healthCheck": ["/bin/sh", "-c", "nslookup app >/dev/null"]
+    }
+  ],
+  "ingress": {
+    "hostPort": 18083,
+    "routes": [
+      {"host": "app.home.local", "service": "app", "port": 8080}
+    ]
+  }
+}

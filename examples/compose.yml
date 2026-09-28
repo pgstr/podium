@@ -1,0 +1,50 @@
+name: demo-compose
+
+services:
+
+  # --- database: health-checked; app waits for it ---
+  db:
+    image: docker.io/library/alpine:3.16
+    command: ["/bin/sh", "-c", "mkdir -p /data && touch /data/ready && exec sleep 600"]
+    working_dir: /data
+    environment:
+      POSTGRES_DB: myapp
+      POSTGRES_USER: admin
+    volumes:
+      - ./data/db:/data
+    healthcheck:
+      test: ["CMD", "test", "-f", "/data/ready"]
+    restart: always
+    mem_limit: 256m
+    x-podium:
+      memoryMB: 256
+      rootfsGB: 2
+
+  # --- app: depends on db; uses env_file + environment override ---
+  app:
+    image: docker.io/library/alpine:3.16
+    command: "/bin/sh -c 'exec sleep 600'"   # string form
+    environment:
+      - APP_ENV=production
+      - LOG_LEVEL=info
+    depends_on:
+      db:
+        condition: service_healthy            # podium health-gates this automatically
+    restart: on-failure
+    deploy:
+      resources:
+        limits:
+          memory: "512m"
+          cpus: "1.5"
+    x-podium:
+      cpus: 2
+      secrets:
+        API_KEY: my_api_key                   # resolved from ~/.podium/demo-compose/secrets.env
+
+  # --- worker: minimal, no health check ---
+  worker:
+    image: docker.io/library/alpine:3.16
+    command: ["sleep", "600"]
+    depends_on:
+      - app
+    restart: unless-stopped                   # maps to always

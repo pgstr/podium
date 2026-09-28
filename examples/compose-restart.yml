@@ -1,0 +1,25 @@
+# Restart-policy mapping + the supervisor, exercised with real images.
+# A one-shot that exits 0, a crasher that exits non-zero (backoff loop),
+# and a long runner. Uses array-form command and a CMD-SHELL healthcheck.
+name: restart-test
+
+services:
+
+  # exits 0 immediately; restart: no → stays exited (no restart loop)
+  oneshot:
+    image: docker.io/library/hello-world
+    restart: "no"
+
+  # exits 1 after a moment; restart: on-failure → crash-loop backoff kicks in
+  crasher:
+    image: docker.io/library/busybox
+    command: ["sh", "-c", "echo crashing; sleep 2; exit 1"]
+    restart: on-failure
+
+  # long-lived; CMD-SHELL healthcheck (→ /bin/sh -c)
+  longrunner:
+    image: docker.io/library/busybox
+    command: ["sh", "-c", "while true; do echo alive; sleep 5; done"]
+    healthcheck:
+      test: ["CMD-SHELL", "true"]
+    restart: always

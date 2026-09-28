@@ -1,0 +1,18 @@
+{
+  "name": "deps-test",
+  "services": [
+    {
+      "id": "svc-app",
+      "image": "docker.io/library/alpine:3.16",
+      "dependsOn": ["svc-db"],
+      "command": ["/bin/sh", "-c", "exec sleep 600"]
+    },
+    {
+      "id": "svc-db",
+      "image": "docker.io/library/alpine:3.16",
+      "command": ["/bin/sh", "-c", "sleep 6; touch /tmp/ready; exec sleep 600"],
+      "healthCheck": ["test", "-f", "/tmp/ready"],
+      "livenessCheck": ["pgrep", "sleep"]
+    }
+  ]
+}

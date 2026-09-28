@@ -1,0 +1,33 @@
+{
+  "name": "caddy-demo",
+  "services": [
+    {
+      "id": "app",
+      "image": "docker.io/library/busybox:1.37",
+      "command": [
+        "/bin/sh", "-c",
+        "mkdir -p /www && echo '<h1>Hello from app</h1>' > /www/index.html && exec busybox httpd -f -p 8080 -h /www"
+      ],
+      "healthCheck": ["wget", "-q", "-O-", "http://localhost:8080"]
+    },
+    {
+      "id": "caddy",
+      "image": "docker.io/library/caddy:2-alpine",
+      "dependsOn": ["app"],
+      "volumes": [
+        { "name": "caddy-config", "destination": "/config" }
+      ],
+      "init": [
+        {
+          "command": [
+            "/bin/sh", "-c",
+            "printf ':80 {\\n  reverse_proxy app:8080\\n}\\n' > /config/Caddyfile && echo '[init] Caddyfile written — reverse_proxy app:8080'"
+          ]
+        }
+      ],
+      "command": ["caddy", "run", "--config", "/config/Caddyfile", "--adapter", "caddyfile"],
+      "ports": [{"hostPort": 8080, "containerPort": 80}],
+      "livenessCheck": ["wget", "-q", "-O-", "http://localhost:80"]
+    }
+  ]
+}

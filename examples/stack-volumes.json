@@ -1,0 +1,27 @@
+{
+  "name": "volumes-demo",
+  "services": [
+    {
+      "id": "db",
+      "image": "docker.io/library/alpine:3.16",
+      "command": ["/bin/sh", "-c", "mkdir -p /data && echo 'hello' >> /data/log.txt && exec sleep 600"],
+      "volumes": [
+        { "name": "pgdata", "destination": "/data" },
+        { "source": "/tmp/db-config", "destination": "/etc/db", "readOnly": true }
+      ],
+      "healthCheck": ["test", "-f", "/data/log.txt"],
+      "memoryMB": 256,
+      "rootfsGB": 2
+    },
+    {
+      "id": "app",
+      "image": "docker.io/library/alpine:3.16",
+      "command": ["/bin/sh", "-c", "cat /shared/log.txt 2>/dev/null || echo '(empty)'; exec sleep 600"],
+      "volumes": [
+        { "name": "pgdata", "destination": "/shared", "readOnly": true }
+      ],
+      "dependsOn": ["db"],
+      "memoryMB": 256
+    }
+  ]
+}

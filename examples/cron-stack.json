@@ -1,0 +1,25 @@
+{
+  "name": "cron-demo",
+  "services": [
+    {
+      "id": "worker",
+      "image": "docker.io/library/alpine:3.16",
+      "command": ["/bin/sh", "-c", "touch /tmp/ready && echo 'worker: ready' && exec sleep 3600"],
+      "healthCheck":   ["test", "-f", "/tmp/ready"],
+      "livenessCheck": ["pgrep", "sleep"],
+      "restartPolicy": "always"
+    },
+    {
+      "id": "heartbeat",
+      "image": "docker.io/library/alpine:3.16",
+      "command": ["/bin/sh", "-c", "echo \"[heartbeat] fired at $(date '+%H:%M:%S')\" && echo \"[heartbeat] uptime: $(cat /proc/uptime | awk '{print $1}')s\""],
+      "schedule": "* * * * *"
+    },
+    {
+      "id": "cleanup",
+      "image": "docker.io/library/alpine:3.16",
+      "command": ["/bin/sh", "-c", "echo \"[cleanup] running at $(date '+%H:%M:%S')\" && sleep 2 && echo '[cleanup] done'"],
+      "schedule": "*/5 * * * *"
+    }
+  ]
+}

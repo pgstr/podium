@@ -1,0 +1,20 @@
+{
+  "name": "managed-ingress-demo",
+  "services": [
+    {
+      "id": "app",
+      "image": "docker.io/library/busybox:1.37",
+      "command": [
+        "/bin/sh", "-c",
+        "mkdir -p /www && echo '<h1>Hello through managed ingress</h1>' > /www/index.html && exec busybox httpd -f -p 8080 -h /www"
+      ],
+      "healthCheck": ["wget", "-q", "-O-", "http://127.0.0.1:8080"]
+    }
+  ],
+  "ingress": {
+    "hostPort": 18082,
+    "routes": [
+      {"host": "app.home.local", "service": "app", "port": 8080}
+    ]
+  }
+}

@@ -1,0 +1,36 @@
+name: volumes-demo
+
+# Top-level volumes block — required to declare named volumes.
+# An empty value (`{}` or null) means a local managed volume: podium
+# creates it at ~/.podium/<stack>/volumes/<name>/.
+volumes:
+  pgdata: {}          # managed: persists across restarts
+  appdata:            # same (null value = defaults)
+
+services:
+
+  # db: writes into the 'pgdata' managed volume.
+  db:
+    image: docker.io/library/alpine:3.16
+    command: ["/bin/sh", "-c", "mkdir -p /data && echo 'hello' >> /data/log.txt && exec sleep 600"]
+    volumes:
+      - pgdata:/data            # named volume → managed by podium
+      - ./config:/etc/db:ro     # bind mount (path source)
+    healthcheck:
+      test: ["CMD", "test", "-f", "/data/log.txt"]
+    mem_limit: 256m
+    x-podium:
+      rootfsGB: 2
+
+  # app: reads from the same 'pgdata' volume and writes into 'appdata'.
+  app:
+    image: docker.io/library/alpine:3.16
+    command: ["/bin/sh", "-c", "cat /shared/log.txt 2>/dev/null || echo '(empty)'; exec sleep 600"]
+    volumes:
+      - pgdata:/shared:ro       # same named volume, read-only
+      - appdata:/appdata        # second named volume
+      - /data                   # anonymous volume → name derived from path hash
+    depends_on:
+      db:
+        condition: service_healthy
+    mem_limit: 256m

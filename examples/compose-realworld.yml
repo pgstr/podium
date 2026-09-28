@@ -1,0 +1,39 @@
+# Real, pullable services — the "does an actual compose file work" test.
+# Exercises: real images, CMD healthchecks, depends_on with condition,
+# environment config, mem via x-podium, and warn-and-drop of `ports`.
+name: realworld
+
+services:
+
+  # redis with a CMD healthcheck (redis-cli ping)
+  cache:
+    image: docker.io/library/redis:7-alpine
+    command: ["redis-server", "--save", "", "--appendonly", "no"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+    restart: always
+
+  # postgres — env-configured, pg_isready healthcheck
+  db:
+    image: docker.io/library/postgres:16-alpine
+    environment:
+      POSTGRES_PASSWORD: devpassword
+      POSTGRES_DB: app
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "postgres"]
+    restart: unless-stopped          # → always
+    x-podium:
+      memoryMB: 512
+      rootfsGB: 2
+
+  # nginx — waits for both backends to be healthy; `ports` is dropped with a warning
+  web:
+    image: docker.io/library/nginx:alpine
+    ports:
+      - "8080:80"                    # dropped: Apple container has no host port-forward
+    depends_on:
+      cache:
+        condition: service_healthy
+      db:
+        condition: service_healthy
+    restart: on-failure

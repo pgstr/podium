@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>__LABEL__</string>
+    <!-- launchd can't run the ad-hoc-signed, virtualization-entitled binary directly
+         (AMFI kills it: OS_REASON_CODESIGNING). It runs fine when spawned by sshd, so
+         we loop through ssh-localhost. See docs/operator-guide.md. -->
+    <key>ProgramArguments</key>
+    <array>
+        <string>/usr/bin/ssh</string>
+        <string>-i</string>
+        <string>__HOME__/.ssh/podium_localhost</string>
+        <string>-o</string>
+        <string>BatchMode=yes</string>
+        <string>-o</string>
+        <string>StrictHostKeyChecking=accept-new</string>
+        <string>-o</string>
+        <string>ServerAliveInterval=30</string>
+        <string>localhost</string>
+        <string>cd __WORKDIR__ &amp;&amp; exec ./podium apply __STACK__ --foreground</string>
+    </array>
+    <key>RunAtLoad</key>
+    <true/>
+    <key>KeepAlive</key>
+    <true/>
+    <key>ProcessType</key>
+    <string>Background</string>
+    <key>StandardOutPath</key>
+    <string>__WORKDIR__/podium.log</string>
+    <key>StandardErrorPath</key>
+    <string>__WORKDIR__/podium.err.log</string>
+</dict>
+</plist>

@@ -1,0 +1,288 @@
+// podium.proto — the Podium control plane (see ARCHITECTURE.md). `make proto`
+// regenerates Sources/PodiumRPC/Generated, which is checked in so builds do not
+// require protoc. Edit this file, run `make proto`, and commit both.
+//
+// Conventions:
+//   • protocol_version bumps on breaking changes; clients refuse on major
+//     mismatch after GetInfo (the FIRST call every client makes).
+//   • Every mutating RPC carries ClientInfo — written into the event log as
+//     the audit trail.
+//   • Timestamps are int64 microseconds since epoch (no well-known-types
+//     dependency to keep codegen minimal).
+
+syntax = "proto3";
+
+package podium.v1;
+
+option swift_prefix = "Pb";
+
+service PodiumControl {
+  // Version handshake — first call every client makes.
+  rpc GetInfo(InfoRequest) returns (InfoResponse);
+
+  // podium ps
+  rpc ListServices(Empty) returns (PsResponse);
+  rpc Describe(ServiceRef) returns (DescribeResponse);
+
+  // podium top — server pushes frames on its own schedule.
+  rpc Stats(StatsRequest) returns (stream StatsSample);
+
+  // podium metrics — one Prometheus-friendly snapshot.
+  rpc Metrics(Empty) returns (MetricsResponse);
+
+  // stop/start/restart, typed.
+  rpc Control(ControlRequest) returns (ControlResponse);
+
+  // reload; also serves `diff` with dry_run=true.
+  rpc Reload(ReloadRequest) returns (ReloadResponse);
+
+  // Stop a stack, optionally deleting managed volumes on the daemon host.
+  rpc Down(DownRequest) returns (DownResponse);
+
+  // logs with tail/since/follow/previous server-side.
+  rpc Logs(LogsRequest) returns (stream LogChunk);
+
+  // events -f without polling; resume via sequence number.
+  rpc Events(EventsRequest) returns (stream Event);
+
+  // bidi exec: stdin/resize up, stdout/stderr/exit down.
+  rpc Exec(stream ExecInput) returns (stream ExecOutput);
+
+  // streaming cp — no size limits, no shell quoting.
+  rpc CopyIn(stream FileChunk) returns (CopyResponse);
+  rpc CopyOut(CopyRequest) returns (stream FileChunk);
+}
+
+message Empty {}
+
+message ClientInfo {
+  string user = 1;      // client-side username (peer uid is verified separately)
+  string argv = 2;      // the CLI invocation, for the audit log
+}
+
+message InfoRequest {}
+
+message InfoResponse {
+  string daemon_version = 1;
+  uint32 protocol_version = 2;   // clients refuse on major mismatch
+  string stack_name = 3;
+  int32 pid = 4;
+}
+
+message ServiceRef {
+  string id = 1;
+}
+
+// Mirrors PodiumDaemon.ServiceStatus (Wire.swift). Snapshot tests pin CLI
+// output byte-identical, so field semantics must not drift.
+message ServiceStatus {
+  string id = 1;
+  string state = 2;              // running|failed|stopped|exited|waiting|backoff|pending|scheduled
+  bool ready = 3;
+  int32 starts = 4;
+  int64 started_at_usec = 5;     // 0 = not running
+  string ip = 6;                 // empty = none
+  repeated PortForward port_forwards = 7;
+  string schedule = 8;           // empty = not a cron service
+  int64 last_run_usec = 9;
+  sint32 last_exit = 10;         // meaningful only with has_last_exit
+  bool has_last_exit = 11;
+  int64 next_run_usec = 12;
+}
+
+message PortForward {
+  int32 host_port = 1;
+  int32 container_port = 2;
+  string bind_address = 3;
+}
+
+message PsResponse {
+  string stack = 1;
+  repeated ServiceStatus services = 2;
+}
+
+message DescribeResponse {
+  ServiceStatus status = 1;
+  string image = 2;
+  int32 cpus = 3;
+  uint64 memory_mb = 4;
+  uint64 rootfs_gb = 5;
+  repeated string command = 6;
+  map<string, string> env = 7;
+  repeated string health_check = 8;
+  repeated string liveness_check = 9;
+  string restart_policy = 10;
+  string log_path = 11;
+  string fail_reason = 12;       // empty = not failed
+  repeated VolumeMount volumes = 13;
+  repeated string entrypoint = 14;
+  repeated string args = 15;
+  bool has_entrypoint = 16;      // distinguishes nil from explicit []
+  bool has_command = 17;
+  bool has_args = 18;
+}
+
+message VolumeMount {
+  string source = 1;             // host path; empty for named volumes
+  string name = 2;               // managed-volume name; empty for binds
+  string destination = 3;
+  bool read_only = 4;
+}
+
+message StatsRequest {
+  uint32 interval_ms = 1;        // 0 = daemon default
+}
+
+message StatsSample {
+  int64 sampled_at_usec = 1;     // daemon monotonic clock
+  repeated ServiceStats services = 2;
+}
+
+message ServiceStats {
+  string id = 1;
+  string state = 2;
+  uint64 cpu_usage_usec = 3;     // cumulative; client computes %
+  bool has_cpu = 4;
+  uint64 mem_usage_bytes = 5;
+  uint64 mem_limit_bytes = 6;
+  bool has_mem = 7;
+  int32 cpus = 8;
+}
+
+message MetricsResponse {
+  double daemon_uptime_seconds = 1;
+  repeated ServiceMetric services = 2;
+}
+
+message ServiceMetric {
+  string id = 1;
+  string phase = 2;
+  uint64 starts = 3;
+  uint64 restarts = 4;
+  double probe_latency_seconds = 5;
+  bool has_probe_latency = 6;
+  uint64 relay_connections = 7;
+}
+
+message ControlRequest {
+  enum Action {
+    ACTION_UNSPECIFIED = 0;
+    STOP = 1;
+    START = 2;
+    RESTART = 3;
+  }
+  ServiceRef service = 1;
+  Action action = 2;
+  ClientInfo client = 15;
+}
+
+message ControlResponse {
+  bool ok = 1;
+  string error = 2;              // typed errors ride gRPC status; this is detail
+}
+
+message ReloadRequest {
+  bool dry_run = 1;              // true = `podium diff`
+  ClientInfo client = 15;
+}
+
+message ReloadResponse {
+  repeated string started = 1;
+  repeated string stopped = 2;
+  repeated string restarted = 3;
+  repeated string unchanged = 4;
+}
+
+message DownRequest {
+  bool delete_volumes = 1;       // deletion occurs on the daemon host
+  ClientInfo client = 15;
+}
+
+message DownResponse {
+  bool ok = 1;
+  repeated string deleted_volumes = 2;
+}
+
+message LogsRequest {
+  ServiceRef service = 1;
+  int32 tail = 2;                // 0 = no tail limit
+  int64 since_usec = 3;          // 0 = no time filter
+  bool follow = 4;
+  bool previous = 5;             // the pre-restart rotated log
+}
+
+message LogChunk {
+  bytes data = 1;                // raw log bytes, timestamp prefixes included
+}
+
+message EventsRequest {
+  int64 after_seq = 1;           // -1 = everything retained
+  bool follow = 2;
+}
+
+message Event {
+  uint64 seq = 1;
+  int64 timestamp_usec = 2;
+  string stack = 3;
+  string service = 4;
+  string type = 5;
+  string detail = 6;
+  uint64 generation = 7;
+  string audit_user = 8;          // present on audited mutation events
+  string audit_argv = 9;
+}
+
+message ExecInput {
+  message Start {
+    ServiceRef service = 1;
+    repeated string argv = 2;
+    bool tty = 3;
+    uint32 rows = 4;
+    uint32 cols = 5;
+    ClientInfo client = 15;
+  }
+  message Resize {
+    uint32 rows = 1;
+    uint32 cols = 2;
+  }
+  oneof input {
+    Start start = 1;             // first message on the stream
+    bytes stdin = 2;
+    Resize resize = 3;
+    bool stdin_eof = 4;
+  }
+}
+
+message ExecOutput {
+  oneof output {
+    bytes stdout = 1;
+    bytes stderr = 2;
+    sint32 exit_code = 3;        // terminal message
+    string error = 4;
+  }
+}
+
+message CopyRequest {
+  ServiceRef service = 1;
+  string container_path = 2;
+}
+
+message FileChunk {
+  // First CopyIn message must carry meta; subsequent ones carry data.
+  message Meta {
+    ServiceRef service = 1;
+    string container_path = 2;
+    uint32 mode = 3;
+    ClientInfo client = 15;
+  }
+  oneof chunk {
+    Meta meta = 1;
+    bytes data = 2;
+  }
+}
+
+message CopyResponse {
+  bool ok = 1;
+  uint64 bytes_written = 2;
+  string error = 3;
+}

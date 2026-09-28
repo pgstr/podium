@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>__LABEL__</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>__BINARY__</string>
+        <string>apply</string>
+        <string>__STACK__</string>
+        <string>--foreground</string>
+    </array>
+    <key>WorkingDirectory</key>
+    <string>__WORKDIR__</string>
+    <key>RunAtLoad</key>
+    <true/>
+    <key>KeepAlive</key>
+    <true/>
+    <key>ProcessType</key>
+    <string>Background</string>
+    <key>StandardOutPath</key>
+    <string>__HOME__/.podium/podium-launchd.log</string>
+    <key>StandardErrorPath</key>
+    <string>__HOME__/.podium/podium-launchd.err.log</string>
+</dict>
+</plist>

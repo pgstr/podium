@@ -1,0 +1,9 @@
+.build/
+.swiftpm/
+dist/
+vmlinux
+/podium
+*.o
+.DS_Store
+*.log
+secrets/
